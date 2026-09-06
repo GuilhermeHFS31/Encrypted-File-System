@@ -66,7 +66,20 @@
 
 
 
-* ### Layout de Bytes do Arquivo Cifrado
+* ### Funcionamento da Criptografia em si
+
+    O sistema divide a criptografia em três componentes básicos de implementação simplificada e de código próprio:
+
+    1. Derivação e Separação de Chaves (KDF)
+       
+       - A partir de uma única senha digitada pelo usuário no momento da montagem, a partir de uma saída de 64 bytes, geram-se duas chaves criptográficas distintas e independentes de 32 bytes cada (uma para cifragem com o AES e a outra para o HMAC):
+    3. Cifragem com AES-CTR (Counter Mode)
+       
+       - A cifragem de dados utiliza o algoritmo AES-256 como PRP.
+    5. Autenticação de Integridade (HMAC)
+       - Em uma callback write, o nosso código calcula: Tag = HMAC-SHA-256<sub>k<sub>hmac</sub></sub>(Salt || IV || Ciphertext). Esta Tag de 32 bytes é anexada pelo nosso programa ao final do arquivo físico no disco.
+       - Em uma callback read, o nosso código reconstrói a Tag sobre os dados do arquivo e a compara com a Tag armazenada.
+    <br>
   
     ```text
     +-------------------------------------------------------------------------+
