@@ -7,7 +7,7 @@
 
 - ### Pasta de Persistência Física (Cifrada): 
   #### Exemplo: ~/GoogleDrive/pasta_cifrada
-  Pasta física real no disco que serve de base para o FUSE. Todos os arquivos nesta pasta têm seus nomes e conteúdos completamente criptografados. Esta pasta é a que o cliente de sincronização (ex:   Google Drive) envia automaticamente para a nuvem.
+  Pasta física real no disco que serve de base. Todos os arquivos nesta pasta têm seus nomes e conteúdos completamente criptografados. Esta pasta é a que o cliente de sincronização (ex:   Google Drive) envia automaticamente para a nuvem.
 
 
 - Diagrama:
@@ -26,7 +26,7 @@
                                   | (Interceptação e Redirecionamento de Chamadas(syscalls))
                                   ▼
   +---------------------------------------------------------------+
-  |                 Nosso Módulo Criptográfico                    |
+  |                     Módulo Criptográfico                      |
   |          [ KDF (SHA-512) -> AES-CTR -> HMAC-SHA256 ]          |
   +---------------------------------------------------------------+
                                   ▲
@@ -45,11 +45,11 @@
 
   A implementação de um sistema de arquivos criptografado transparente poderia ser feita de duas formas: operando diretamente dentro do núcleo do sistema operacional (espaço de Kernel) ou operando no espaço de usuário (User Space). Pretendo seguir com a segunda abordagem por meio do FUSE (Filesystem in Userspace).
   
-  O FUSE é um módulo do Kernel do Linux que atua como uma ponte de redirecionamento de chamadas de sistema (syscalls). A sua função no Nosso Módulo Criptográfico é:
+  O FUSE é um módulo do Kernel do Linux que atua como uma ponte de redirecionamento de chamadas de sistema (syscalls). A sua função no Módulo Criptográfico é:
   
     - Interceptação Transparente: Quando um aplicativo (como o terminal ou uma IDE) tenta acessar um arquivo no ponto de montagem virtual (~/meu_drive_seguro), o Kernel intercepta essa chamada.
-    - Encaminhamento de Chamadas: Em vez de tratar essa requisição diretamente nos drivers físicos de disco, o FUSE desvia a chamada para a nossa aplicação escrita em C que roda em espaço de         usuário.
-    - Retorno do Dado Processado: Nosso programa processa o dado (faz a validação do HMAC e a decifragem com AES-CTR) e devolve o texto claro de volta ao Kernel através do FUSE, que por sua vez entrega   ao aplicativo solicitante de forma totalmente transparente.
+    - Encaminhamento de Chamadas: Em vez de tratar essa requisição diretamente nos drivers físicos de disco, o FUSE desvia a chamada para a nossa aplicação escrita em C que roda em espaço de usuário.
+    - Retorno do Dado Processado: Nosso programa processa o dado (faz a validação do HMAC e a decifragem com AES-CTR) e devolve o texto claro de volta ao Kernel através do FUSE, que por sua vez entrega ao aplicativo solicitante de forma totalmente transparente.
 
     <br>
     <br>
@@ -59,7 +59,7 @@
     | :--- | :--- | :--- |
     | `ls` (listar arquivos) | Solicita listagem do diretório e metadados de cada arquivo. | `readdir` (para decifrar os nomes dos arquivos) e `getattr` (para carregar permissões e tamanhos). |
     | `cd pasta` (entrar em pasta) | Verifica a existência e propriedades do caminho. | `getattr` (para responder ao Linux que o caminho físico cifrado é de fato um diretório). |
-    | `cat arquivo.txt` (ler arquivo) | Abre o arquivo, lê uma sequência de bytes e fecha. | `open` (valida permissões), `read` (decifra em RAM com AES-CTR) e `release` (fecha o descritor de arquivo). |
+    | `cat arquivo.txt` (ler arquivo) | Abre o arquivo, lê uma sequência de bytes e fecha. | `open` (valida permissões), `read` (decifra com AES-CTR) e `release` (fecha o descritor de arquivo). |
     | `echo "dados" > arq.txt` | Cria um novo arquivo físico e grava dados. | `create` (cria arquivo físico na pasta oculta), `write` (cifra com AES-CTR e calcula HMAC) e `release`. |
     | `mkdir nova_pasta` | Solicita a criação de um diretório físico. | `mkdir` (cria diretório com nome cifrado na pasta de persistência real). |
     | `rm arquivo.txt` | Solicita a remoção de um arquivo físico. | `unlink` (localiza e remove o arquivo criptografado correspondente na pasta física). |
@@ -75,9 +75,9 @@
        - A partir de uma única senha digitada pelo usuário no momento da montagem, a partir de uma saída de 64 bytes, geram-se duas chaves criptográficas distintas e independentes de 32 bytes cada (uma para cifragem com o AES e a outra para o HMAC):
     3. Cifragem com AES-CTR (Counter Mode)
        
-       - A cifragem de dados utiliza o algoritmo AES-256 como PRP.
+       - A cifragem de dados utiliza o algoritmo AES-256 como PRP. Foi escolhida a implementação standalone "tiny-AES-c" (https://github.com/kokke/tiny-AES-C)
     5. Autenticação de Integridade (HMAC)
-       - Em uma callback write, o nosso código calcula: Tag = HMAC-SHA-256<sub>k<sub>hmac</sub></sub>(Salt || IV || Ciphertext). Esta Tag de 32 bytes é anexada pelo nosso programa ao final do arquivo físico no disco.
+       - Em uma callback write, o nosso código calcula: Tag = HMAC-SHA-512<sub>k<sub>hmac</sub></sub>(Salt || IV || Ciphertext). Esta Tag de 64 bytes é anexada pelo nosso programa ao final do arquivo físico no disco.
        - Em uma callback read, o nosso código reconstrói a Tag sobre os dados do arquivo e a compara com a Tag armazenada.
     <br>
   
@@ -92,7 +92,7 @@
     |                            (Payload AES-CTR)                            |
     |                                                                         |
     +-------------------------------------------------------------------------+
-    |                      TAG DE AUTENTICAÇÃO (32 bytes)                     |
-    |                              (HMAC-SHA-256)                             |
+    |                      TAG DE AUTENTICAÇÃO (64 bytes)                     |
+    |                              (HMAC-SHA-512)                             |
     +-------------------------------------------------------------------------+
     ```
