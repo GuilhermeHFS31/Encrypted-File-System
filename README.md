@@ -27,7 +27,7 @@
                                   ▼
   +---------------------------------------------------------------+
   |                     Módulo Criptográfico                      |
-  |          [ KDF (SHA-512) -> AES-CTR -> HMAC-SHA256 ]          |
+  |          [ KDF (SHA-512) -> AES-CTR -> HMAC-SHA512 ]          |
   +---------------------------------------------------------------+
                                   ▲
                                   | (Escrita/Leitura Cifrada - Ex: ~/GoogleDrive)
@@ -64,7 +64,14 @@
     | `mkdir nova_pasta` | Solicita a criação de um diretório físico. | `mkdir` (cria diretório com nome cifrado na pasta de persistência real). |
     | `rm arquivo.txt` | Solicita a remoção de um arquivo físico. | `unlink` (localiza e remove o arquivo criptografado correspondente na pasta física). |
 
+* ### Alternativas ao FUSE (ainda em espaço de usuário):
+  - Interceptação de Chamadas via LD_PRELOAD (Sobrescrita da libc):
+      Construção de uma biblioteca compartilhada (.so em C) que sobrescreve as funções padrão de manipulação de arquivos da biblioteca libc (open, read, write, close). Ao executar qualquer programa com o comando LD_PRELOAD=./sua_lib.so aplicativo, a biblioteca intercepta as chamadas de I/O em tempo de execução, cifrando e decifrando os dados na memória de forma transparente apenas para aquele processo. **Desvantagem:** só funciona nos processos iniciados explicitamente sob esse wrapper e falha se o programa fizer chamadas de sistema (syscalls) diretas sem passar pela libc, o que pode expor problemas para programas compilados estaticamente ou que rodem chamadas diretas do sistema em assembly.
 
+  - Servidor de Rede Loopback Local (WebDAV ou NFS em User-Space):
+      Execução de um servidor WebDAV ou NFS local rodando em background. O próprio gerenciador de arquivos do sistema operacional conecta nessa pasta de rede virtual como se fosse um servidor remoto. **Desvantagem:** possível overhead dos protocolos de rede (HTTP/WebDAV) para operações simples de disco local.
+
+  O uso do FUSE ainda me parece a melhor opção, uma vez que funciona apenas como um redirecionador padronizado pelo próprio Linux, redirencionando as syscalls diretamente para a nossa aplicação.
 
 * ### Funcionamento da Criptografia em si
 
